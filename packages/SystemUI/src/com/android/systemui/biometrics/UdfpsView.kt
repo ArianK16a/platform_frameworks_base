@@ -229,8 +229,14 @@ class UdfpsView(
     val hasSamsungMask = File(samsungActualMaskBrightness).exists()
     var fodFileObserver: FileObserver? = null
 
-   val xiaomiDispParam = "/sys/class/mi_display/disp-DSI-0/disp_param"
-    var hasXiaomiLhbm = File(xiaomiDispParam).exists()
+    val xiaomiDispParam = "/sys/class/mi_display/disp-DSI-0/disp_param"
+    var hasXiaomiLhbm = false
+    try {
+        val xiaomiFingerprintService = IXiaomiFingerprint.getService()
+        val xiaomiTouchfeatureService = ITouchFeature.getService()
+        hasXiaomiLhbm = File(xiaomiDispParam).exists() && xiaomiFingerprintService != null && xiaomiTouchfeatureService != null
+    } catch(e: Exception) {
+    }
 
     private val handlerThread = HandlerThread("UDFPS").also { it.start() }
     val myHandler = Handler(handlerThread.looper)
@@ -293,14 +299,14 @@ class UdfpsView(
             Log.d("PHH-Enroll", "Xiaomi scenario in UdfpsView reached!")
             mySurfaceView.setVisibility(INVISIBLE)
 
-            IXiaomiFingerprint.getService().extCmd(android.os.SystemProperties.getInt("persist.phh.xiaomi.fod.enrollment.id", 4), 1);
-            var res = ITouchFeature.getService().setTouchMode(0, 10, 1);
+            xiaomiFingerprintService.extCmd(android.os.SystemProperties.getInt("persist.phh.xiaomi.fod.enrollment.id", 4), 1);
+            var res = xiaomiTouchfeatureService.setTouchMode(0, 10, 1);
             if(res != 0){
                 Log.d("PHH-Enroll", "SetTouchMode 10,1 was NOT executed successfully. Res is " + res)
             }
 
             myHandler.postDelayed({
-                var ret200 = ITouchFeature.getService().setTouchMode(0, 10, 1);
+                var ret200 = xiaomiTouchfeatureService.setTouchMode(0, 10, 1);
 
                 if(ret200 != 0){
                     Log.d("PHH-Enroll", "myHandler.postDelayed 200ms -SetTouchMode was NOT executed successfully. Ret is " + ret200)
@@ -308,7 +314,7 @@ class UdfpsView(
 
                 myHandler.postDelayed({
                     Log.d("PHH-Enroll", "myHandler.postDelayed 600ms - line prior to setTouchMode 10,0")
-                    var ret600 = ITouchFeature.getService().setTouchMode(0, 10, 0);
+                    var ret600 = xiaomiTouchfeatureService.setTouchMode(0, 10, 0);
 
                     if(ret600 != 0){
                         Log.d("PHH-Enroll", "myHandler.postDelayed 600ms -SetTouchMode 10,0 was NOT executed successfully. Ret is " + ret600)
@@ -363,8 +369,8 @@ class UdfpsView(
             };
             fodFileObserver?.startWatching();
         } else if(hasXiaomiLhbm) {
-            IXiaomiFingerprint.getService().extCmd(android.os.SystemProperties.getInt("persist.phh.xiaomi.fod.enrollment.id", 4), 0);
-            ITouchFeature.getService().setTouchMode(0, 10, 0);
+            xiaomiFingerprintService.extCmd(android.os.SystemProperties.getInt("persist.phh.xiaomi.fod.enrollment.id", 4), 0);
+            xiaomiTouchfeatureService.setTouchMode(0, 10, 0);
         } else if(hasNubiaHbm) {
             Log.d("PHH-Enroll", "Nubia Restore brightness")
             File(nubiaHbmState).writeText(File("/sys/class/backlight/panel0-backlight/brightness").readText())
